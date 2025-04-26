@@ -6,6 +6,8 @@
 #include "imu_helpers.h"
 #include <SimpleFOC.h>
 
+int sign = 1;
+
 int DELAY_TIME = 60;
 
 // indecies for odrive controlls
@@ -20,6 +22,8 @@ const float HIP_START_POS_RIGHT = -0.5; // in revolutions
 const float HIP_HOME = 0.5;
 float HIP_MAX = 1.4;
 const float HIP_MIN = 0;
+
+float dir [4] = {1, -1, 1, -1}; // [hip_left, hip_right, wheel_left, wheel_right]
 
 float hip_pos_left = 0;
 float hip_pos_right = 0;
@@ -37,7 +41,7 @@ ODriveTeensyCAN odriveCAN(250000);
 
 // control algorithm parameters
 // stabilisation pid
-PIDController pid_stb(30, 100, 1, 100000, 0.39);
+PIDController pid_stb(1, 1, 0, 100000, 0.3); // PIDController pid_stb(0.01, 100, 1, 100000, 0.05);
 // velocity pid
 PIDController pid_vel(0.01, 0.03, 0, 10000, 0.39);
 // leg height pid
@@ -60,6 +64,7 @@ bool call_once = false;
 // Modes
 const int IDLE = 0;
 const int MOVE = 1;
+const int TEST = 2;
 
 int mode = 1;  //an int 0 to 3
 
@@ -85,6 +90,7 @@ void lpfThrottle(char* cmd) {  commander.lpf(&lpf_throttle, cmd);}
 
 void set_idle(char* cmd) {  mode = 0;}
 void set_move(char* cmd) {  mode = 1;}
+void set_switch_dir(char* cmd) {  sign = -1;}
 
 
 
@@ -142,8 +148,9 @@ void setup() {
   commander.add('C', lpfThrottle, "lpf vel command");
   commander.add('D', lpfPitch, "lpf throttle");
   commander.add('E', lpfSteering, "lpf steering");
-  commander.add('I', set_idle, "idle");
+  commander.add('i', set_idle, "idle");
   commander.add('M', set_move, "move");
+  commander.add('s', set_switch_dir, "switch_dir");
 
   delay(1000);
   // imu init and configure
@@ -174,10 +181,10 @@ void setup() {
   //odriveCAN.RunState(WHEEL_LEFT, 3);
 
   // Set odrives in close loop control mode --> 8
-  //odriveCAN.RunState(WHEEL_LEFT, 8);
-  // odriveCAN.RunState(WHEEL_RIGHT, 8);
-  //odriveCAN.RunState(HIP_LEFT, 8);
-  //odriveCAN.RunState(HIP_RIGHT, 8);
+  odriveCAN.RunState(WHEEL_LEFT, 8);
+  odriveCAN.RunState(WHEEL_RIGHT, 8);
+  odriveCAN.RunState(HIP_LEFT, 8);
+  odriveCAN.RunState(HIP_RIGHT, 8);
 
   // delay(DELAY_TIME);
 
@@ -205,9 +212,13 @@ void move(Controls controls)
     odriveCAN.RunState(HIP_LEFT, 8);
   }
 
-  // Serial.print("Wheel controls: ");
-  // Serial.println(controls.wheel_controls);
-  odriveCAN.SetTorque(WHEEL_LEFT, controls.wheel_controls);
+  Serial.print("Wheel controls left: ");
+  Serial.print(dir[WHEEL_LEFT] * controls.wheel_controls);
+  Serial.print("  Wheel controls right: ");
+  Serial.println(dir[WHEEL_RIGHT] * controls.wheel_controls);
+
+  odriveCAN.SetTorque(WHEEL_LEFT, -dir[WHEEL_LEFT] * controls.wheel_controls);
+  odriveCAN.SetTorque(WHEEL_RIGHT, -dir[WHEEL_RIGHT] * controls.wheel_controls);
 }
 
 Controls compute_controls()
@@ -221,26 +232,30 @@ Controls compute_controls()
     float pitch = getPitchIMU();
     float roll = getRollIMU();
 
-      
-    // compute wheel controls
+    
+    // wheel controls
+    float target_pitch = 0; // lpf_pitch_cmd(pid_vel((wheel_vel_left + wheel_vel_right) / 2 - lpf_throttle(throttle)));
+    // calculate the target voltage
+    float wheel_velocity = pid_stb(target_pitch - pitch);
+    controls.wheel_controls = wheel_velocity;
+
+    /*// compute wheel controls
     if (!std::isnan(wheel_vel_left))
     {
       // wheel controls
-      float target_pitch = lpf_pitch_cmd(pid_vel(wheel_vel_left - lpf_throttle(throttle)));
+      float target_pitch = lpf_pitch_cmd(pid_vel((wheel_vel_left + wheel_vel_right) / 2 - lpf_throttle(throttle)));
       // calculate the target voltage
       float wheel_velocity = pid_stb(target_pitch - pitch);
       controls.wheel_controls = wheel_velocity;
-    }
+    }*/
       
     // compute hip controls
-    if (!std::isnan(hip_pos_left))
+    /*if (!std::isnan(hip_pos_left))
     {
-      //Serial.print("hip_pos_left: ");
-      //Serial.println(hip_pos_left);
       float target_roll = 0;
       float hip_controls = pid_hip(0 - roll);
       controls.hip_controls = hip_pos_left * hip_controls;
-    }
+    }*/
   }
   return controls;
 }
@@ -272,9 +287,6 @@ void get_joint_data()
       else if (inMsg.id == id_wheel_left) {
         posVel.parseMessage(inMsg);
         wheel_vel_left = posVel.velEstimate;
-
-        Serial.print(" Vel left: ");
-        Serial.println(wheel_vel_left, 4);
       }
       else if (inMsg.id == id_wheel_right) {
         posVel.parseMessage(inMsg);
@@ -282,6 +294,13 @@ void get_joint_data()
       }
     }
   }
+}
+
+void test_wheels()
+{
+  float torque = sign * 0.05;
+  odriveCAN.SetTorque(WHEEL_LEFT, dir[WHEEL_LEFT] * torque);
+  odriveCAN.SetTorque(WHEEL_RIGHT, dir[WHEEL_RIGHT] * torque);
 }
 
 void loop() {
@@ -296,6 +315,9 @@ void loop() {
     break;
   case MOVE:
     move(compute_controls());
+    break;
+  case TEST:
+    test_wheels();
     break;
   default:
     break;
