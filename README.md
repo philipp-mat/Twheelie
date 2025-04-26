@@ -7,3 +7,8 @@ This project contains the code to control my custom-designed two-legged robot on
 
 ## Twheelie alive
 ![twheelie_alive](.graphics/Twheelie2.gif)
+
+## Control
+Control Twheelie with the command line
+Idle mode --> "I"
+Move mode --> "M"

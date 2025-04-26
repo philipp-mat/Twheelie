@@ -17,20 +17,19 @@ const int WHEEL_RIGHT = 3;
 const float HIP_START_POS_LEFT = 0.5; // in revolutions
 const float HIP_START_POS_RIGHT = -0.5; // in revolutions
 
-// direction of increasing position according to the Odrive (CW = +1, CCW = -1) {hip, wheel}
-const int DIR[2][2] = { { 1, 1},     // left leg
-                        { -1, -1}};  // right leg
 const float HIP_HOME = 0.5;
 float HIP_MAX = 1.4;
 const float HIP_MIN = 0;
 
 float hip_pos_left = 0;
 float hip_pos_right = 0;
+float hip_vel_left = 0;
+float hip_vel_right = 0;
+
 float wheel_vel_left = 0;
 float wheel_vel_right = 0;
 
 IqMsg_t iqData;         
-CAN_message_t inMsg;
 EncoderEstimatesMsg_t end_pos_msg;
 EncoderEstimatesMsg_t encoder_msg;
 
@@ -56,7 +55,7 @@ float max_throttle = 20; // 20 rad/s
 float max_steering = 1; // 1 V
 int state = 1; // 1 on / 0 off
 
-bool call_once = true;
+bool call_once = false;
 
 // Modes
 const int IDLE = 0;
@@ -88,7 +87,8 @@ void set_idle(char* cmd) {  mode = 0;}
 void set_move(char* cmd) {  mode = 1;}
 
 
-void homeMotor() {
+
+/*void homeMotor() {
   Serial.println("Homing motor...");
 
   odriveCAN.RunState(0, 8);
@@ -131,7 +131,7 @@ void homeMotor() {
     }
     delay(50);
   }
-}
+}*/
 
 void setup() {
   Serial.begin(115200);  //start Serial monitor
@@ -153,16 +153,16 @@ void setup() {
   }
   delay(1000);
 
-  odriveCAN.SetLimits(HIP_LEFT, 5, 18);
-  odriveCAN.SetLimits(HIP_RIGHT, 5, 18);
+  //odriveCAN.SetLimits(HIP_LEFT, 5, 18);
+  //odriveCAN.SetLimits(HIP_RIGHT, 5, 18);
   //odriveCAN.SetLimits(2, 10, 3);
   //odriveCAN.SetLimits(3, 10, 3);
   
-  odriveCAN.SetPositionGain(HIP_LEFT, 70);  //axisID, position gain
-  odriveCAN.SetVelocityGains(HIP_LEFT, 0.167, 0.333);  //axisID, velocity gain, velocity integrator gain
+  //odriveCAN.SetPositionGain(HIP_LEFT, 70);  //axisID, position gain
+  //odriveCAN.SetVelocityGains(HIP_LEFT, 0.167, 0.333);  //axisID, velocity gain, velocity integrator gain
 
-  odriveCAN.SetPositionGain(HIP_RIGHT, 70);  //axisID, position gain
-  odriveCAN.SetVelocityGains(HIP_RIGHT, 0.167, 0.333);  //axisID, velocity gain, velocity integrator gain
+  //odriveCAN.SetPositionGain(HIP_RIGHT, 70);  //axisID, position gain
+  //odriveCAN.SetVelocityGains(HIP_RIGHT, 0.167, 0.333);  //axisID, velocity gain, velocity integrator gain
 
   //odriveCAN.SetPositionGain(2, 15);  //axisID, position gain
   //odriveCAN.SetVelocityGains(2, 0.167, 0.333);  //axisID, velocity gain, velocity integrator gain
@@ -173,29 +173,27 @@ void setup() {
   // Calibration state
   //odriveCAN.RunState(WHEEL_LEFT, 3);
 
-  //delay(15000);
-
-  //odriveCAN.RunState(HIP_LEFT, 8); // run closed loop control
-  //odriveCAN.RunState(HIP_RIGHT, 8);
+  // Set odrives in close loop control mode --> 8
   //odriveCAN.RunState(WHEEL_LEFT, 8);
-  //odriveCAN.RunState(3, 8);
+  // odriveCAN.RunState(WHEEL_RIGHT, 8);
+  //odriveCAN.RunState(HIP_LEFT, 8);
+  //odriveCAN.RunState(HIP_RIGHT, 8);
 
-  odriveCAN.RunState(WHEEL_LEFT, 8);
-  odriveCAN.RunState(HIP_LEFT, 8);
+  // delay(DELAY_TIME);
 
-  delay(DELAY_TIME);
+  //odriveCAN.SetPosition(HIP_LEFT, HIP_START_POS_LEFT);
 
-  odriveCAN.SetPosition(HIP_LEFT, HIP_START_POS_LEFT);
-
-  delay(2000);
+  //delay(2000);
 
   //homeMotor();
 }
 
 void idle()
 {
-  odriveCAN.RunState(HIP_LEFT, 1);
   odriveCAN.RunState(WHEEL_LEFT, 1);
+  odriveCAN.RunState(WHEEL_RIGHT, 1);
+  odriveCAN.RunState(HIP_LEFT, 1);
+  odriveCAN.RunState(HIP_RIGHT, 1);
 }
 
 void move(Controls controls)
@@ -206,24 +204,23 @@ void move(Controls controls)
     odriveCAN.RunState(WHEEL_LEFT, 8);
     odriveCAN.RunState(HIP_LEFT, 8);
   }
-  //Serial.println(controls.wheel_controls);
 
-  //Serial.print("hip control pos: ");
-  // Serial.println(controls.hip_controls);
-  //odriveCAN.SetTorque(WHEEL_LEFT, controls.wheel_controls);
+  // Serial.print("Wheel controls: ");
+  // Serial.println(controls.wheel_controls);
+  odriveCAN.SetTorque(WHEEL_LEFT, controls.wheel_controls);
 }
 
 Controls compute_controls()
 {
   Controls controls;
 
-    
   if ( hasDataIMU() )
   {
       
     // read pitch from the IMU
     float pitch = getPitchIMU();
     float roll = getRollIMU();
+
       
     // compute wheel controls
     if (!std::isnan(wheel_vel_left))
@@ -238,8 +235,8 @@ Controls compute_controls()
     // compute hip controls
     if (!std::isnan(hip_pos_left))
     {
-      Serial.print("hip_pos_left: ");
-      Serial.println(hip_pos_left);
+      //Serial.print("hip_pos_left: ");
+      //Serial.println(hip_pos_left);
       float target_roll = 0;
       float hip_controls = pid_hip(0 - roll);
       controls.hip_controls = hip_pos_left * hip_controls;
@@ -250,18 +247,40 @@ Controls compute_controls()
 
 void get_joint_data()
 {
-  /*if (odriveCAN.ReadMsg(inMsg))
-  {
-    odriveCAN.GetPositionVelocity(WHEEL_LEFT);
-    odriveCAN.GetPositionVelocityResponse(encoder_msg, inMsg);
-    wheel_vel_left = encoder_msg.velEstimate;
-  }*/
+  uint32_t start_time = millis();
+  while (millis() - start_time < 10) {
+    CAN_message_t inMsg;
+    if (odriveCAN.ReadMsg(inMsg))
+    {
+      uint32_t id_hip_left = ODriveTeensyCAN::CMD_ID_GET_ENCODER_ESTIMATES | (HIP_LEFT << 5);
+      uint32_t id_hip_right = ODriveTeensyCAN::CMD_ID_GET_ENCODER_ESTIMATES | (HIP_RIGHT << 5);
+      uint32_t id_wheel_left = ODriveTeensyCAN::CMD_ID_GET_ENCODER_ESTIMATES | (WHEEL_LEFT << 5);
+      uint32_t id_wheel_right = ODriveTeensyCAN::CMD_ID_GET_ENCODER_ESTIMATES | (WHEEL_RIGHT << 5);
 
-  if (odriveCAN.ReadMsg(inMsg))
-  {
-    odriveCAN.GetPositionVelocity(HIP_LEFT);
-    odriveCAN.GetPositionVelocityResponse(encoder_msg, inMsg);
-    hip_pos_left = encoder_msg.posEstimate;
+      EncoderEstimatesMsg_t posVel;
+
+      if (inMsg.id == id_hip_left) {
+        posVel.parseMessage(inMsg);
+        hip_pos_left = posVel.posEstimate;
+        hip_vel_left = posVel.velEstimate;
+      } 
+      else if (inMsg.id == id_hip_right) {
+        posVel.parseMessage(inMsg);
+        hip_pos_right = (-1) * posVel.posEstimate; 
+        hip_vel_right = (-1) * posVel.velEstimate;
+      }
+      else if (inMsg.id == id_wheel_left) {
+        posVel.parseMessage(inMsg);
+        wheel_vel_left = posVel.velEstimate;
+
+        Serial.print(" Vel left: ");
+        Serial.println(wheel_vel_left, 4);
+      }
+      else if (inMsg.id == id_wheel_right) {
+        posVel.parseMessage(inMsg);
+        wheel_vel_right = (-1) * posVel.velEstimate;
+      }
+    }
   }
 }
 
@@ -283,4 +302,5 @@ void loop() {
   }
 
   commander.run();
+  //delay(500);
 }  
