@@ -41,7 +41,7 @@ ODriveTeensyCAN odriveCAN(250000);
 
 // control algorithm parameters
 // stabilisation pid
-PIDController pid_stb(1, 1, 0, 100000, 0.3); // PIDController pid_stb(0.01, 100, 1, 100000, 0.05);
+PIDController pid_stb(0.4, 0, 0.05, 100000, 0.39); // PIDController pid_stb(0.4, 0, 0.05, 100000, 0.39);
 // velocity pid
 PIDController pid_vel(0.01, 0.03, 0, 10000, 0.39);
 // leg height pid
@@ -63,8 +63,9 @@ bool call_once = false;
 
 // Modes
 const int IDLE = 0;
-const int MOVE = 1;
+const int BALANCE = 1;
 const int TEST = 2;
+const int HEIGHT = 3;
 
 int mode = 1;  //an int 0 to 3
 
@@ -89,9 +90,9 @@ void lpfSteering(char* cmd) {  commander.lpf(&lpf_steering, cmd);}
 void lpfThrottle(char* cmd) {  commander.lpf(&lpf_throttle, cmd);}
 
 void set_idle(char* cmd) {  mode = 0;}
-void set_move(char* cmd) {  mode = 1;}
+void set_balance(char* cmd) {  mode = 1;}
 void set_switch_dir(char* cmd) {  sign = -1;}
-
+void set_height(char* cmd) {  mode = 3;}
 
 
 /*void homeMotor() {
@@ -149,8 +150,9 @@ void setup() {
   commander.add('D', lpfPitch, "lpf throttle");
   commander.add('E', lpfSteering, "lpf steering");
   commander.add('i', set_idle, "idle");
-  commander.add('M', set_move, "move");
+  commander.add('M', set_balance, "balance");
   commander.add('s', set_switch_dir, "switch_dir");
+  commander.add('h', set_height, "height");
 
   delay(1000);
   // imu init and configure
@@ -203,7 +205,7 @@ void idle()
   odriveCAN.RunState(HIP_RIGHT, 1);
 }
 
-void move(Controls controls)
+void balance(Controls controls)
 {
   if (call_once == true)
   {
@@ -219,6 +221,18 @@ void move(Controls controls)
 
   odriveCAN.SetTorque(WHEEL_LEFT, -dir[WHEEL_LEFT] * controls.wheel_controls);
   odriveCAN.SetTorque(WHEEL_RIGHT, -dir[WHEEL_RIGHT] * controls.wheel_controls);
+}
+
+void adjust_height()
+{
+  odriveCAN.SetPosition(HIP_LEFT, -dir[HIP_LEFT] * 0.1);
+  odriveCAN.SetPosition(HIP_RIGHT, -dir[HIP_RIGHT] * 0.1);
+
+  // Send "force re-run closed-loop control" to both
+  odriveCAN.RunState(HIP_LEFT, ODriveTeensyCAN::AXIS_STATE_CLOSED_LOOP_CONTROL);
+  odriveCAN.RunState(HIP_RIGHT, ODriveTeensyCAN::AXIS_STATE_CLOSED_LOOP_CONTROL);
+
+  mode = BALANCE;
 }
 
 Controls compute_controls()
@@ -313,9 +327,11 @@ void loop() {
     call_once = true;
     idle();
     break;
-  case MOVE:
-    move(compute_controls());
+  case BALANCE:
+    balance(compute_controls());
     break;
+  case HEIGHT:
+    adjust_height();
   case TEST:
     test_wheels();
     break;
