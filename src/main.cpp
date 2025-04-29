@@ -41,9 +41,12 @@ ODriveTeensyCAN odriveCAN(250000);
 
 // control algorithm parameters
 // stabilisation pid
-PIDController pid_stb(0.4, 0, 0.05, 100000, 0.39); // PIDController pid_stb(0.4, 0, 0.05, 100000, 0.39);
+// PIDController pid_stb(0.4, 0, 0.04, 100000, 0.39); low
+// PIDController pid_stb(0.7, 0.8, 0.05, 100000, 0.39); high
+
+PIDController pid_stb(0.7, 0.8, 0.05, 100000, 0.39); // PIDController
 // velocity pid
-PIDController pid_vel(0.01, 0.03, 0, 10000, 0.39);
+PIDController pid_vel(0.01, 0.055, 0, 10000, 0.39);
 // leg height pid
 PIDController pid_hip(1, 0, 0, 10000, HIP_MAX); // position controller
 // velocity control filtering
@@ -188,7 +191,10 @@ void setup() {
   odriveCAN.RunState(HIP_LEFT, 8);
   odriveCAN.RunState(HIP_RIGHT, 8);
 
-  // delay(DELAY_TIME);
+  delay(DELAY_TIME);
+
+  odriveCAN.SetPosition(HIP_LEFT, -dir[HIP_LEFT] * 0.2);
+  odriveCAN.SetPosition(HIP_RIGHT, -dir[HIP_RIGHT] * 0.2);
 
   //odriveCAN.SetPosition(HIP_LEFT, HIP_START_POS_LEFT);
 
@@ -207,12 +213,12 @@ void idle()
 
 void balance(Controls controls)
 {
-  if (call_once == true)
+  /*if (call_once == true)
   {
     call_once = false;
     odriveCAN.RunState(WHEEL_LEFT, 8);
     odriveCAN.RunState(HIP_LEFT, 8);
-  }
+  }*/
 
   Serial.print("Wheel controls left: ");
   Serial.print(dir[WHEEL_LEFT] * controls.wheel_controls);
@@ -226,11 +232,16 @@ void balance(Controls controls)
 void adjust_height()
 {
   odriveCAN.SetPosition(HIP_LEFT, -dir[HIP_LEFT] * 0.1);
-  odriveCAN.SetPosition(HIP_RIGHT, -dir[HIP_RIGHT] * 0.1);
+  odriveCAN.SetPosition(HIP_RIGHT, -dir[HIP_RIGHT] * 0.12);
 
   // Send "force re-run closed-loop control" to both
   odriveCAN.RunState(HIP_LEFT, ODriveTeensyCAN::AXIS_STATE_CLOSED_LOOP_CONTROL);
   odriveCAN.RunState(HIP_RIGHT, ODriveTeensyCAN::AXIS_STATE_CLOSED_LOOP_CONTROL);
+
+  commander.pid(&pid_stb, "AP70");
+  commander.pid(&pid_stb, "AI10");
+  commander.pid(&pid_stb, "AD10");
+
 
   mode = BALANCE;
 }
@@ -249,19 +260,8 @@ Controls compute_controls()
     
     // wheel controls
     float target_pitch = 0; // lpf_pitch_cmd(pid_vel((wheel_vel_left + wheel_vel_right) / 2 - lpf_throttle(throttle)));
-    // calculate the target voltage
     float wheel_velocity = pid_stb(target_pitch - pitch);
     controls.wheel_controls = wheel_velocity;
-
-    /*// compute wheel controls
-    if (!std::isnan(wheel_vel_left))
-    {
-      // wheel controls
-      float target_pitch = lpf_pitch_cmd(pid_vel((wheel_vel_left + wheel_vel_right) / 2 - lpf_throttle(throttle)));
-      // calculate the target voltage
-      float wheel_velocity = pid_stb(target_pitch - pitch);
-      controls.wheel_controls = wheel_velocity;
-    }*/
       
     // compute hip controls
     /*if (!std::isnan(hip_pos_left))
