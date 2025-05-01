@@ -47,10 +47,11 @@ ODriveTeensyCAN odriveCAN(250000);
 // PIDController pid_stb(0.3, 0, 0.02, 100000, 0.39); low wtf
 // PIDController pid_stb(0.7, 0.8, 0.05, 100000, 0.39); high
 // PIDController pid_stb(0.6, 0.8, 0.03, 100000, 0.39); high new
+// 0.2, 5, 0.02, 100000, 0.39
 
-PIDController pid_stb(0.6, 2, 0.02, 100000, 0.39); // PIDController
+PIDController pid_stb(0.8, 4.5, 0.02, 100000, 0.39); // PIDController
 // velocity pid
-PIDController pid_vel(0.0, 0.0, 0, 10000, 0.39);
+PIDController pid_vel(0.015, 0.02, 0, 10000, 0.03);
 // leg height pid
 PIDController pid_hip(1, 0, 0, 10000, HIP_MAX); // position controller
 // velocity control filtering
@@ -264,6 +265,8 @@ Controls compute_controls()
     // wheel controls
     float target_pitch = lpf_pitch_cmd(pid_vel((wheel_vel_left + wheel_vel_right) / 2 - lpf_throttle(throttle)));
 
+    Serial.println(target_pitch);
+
     float wheel_velocity = pid_stb(target_pitch - pitch);
     controls.wheel_controls = wheel_velocity;
       
@@ -296,10 +299,10 @@ void get_joint_data()
         posVel.parseMessage(inMsg);
         hip_pos_left = posVel.posEstimate;
         hip_vel_left = posVel.velEstimate;
-        Serial.print("left: ");
+        /*Serial.print("left: ");
         Serial.print(hip_pos_left);
         Serial.print(" right: ");
-        Serial.println(hip_pos_right);
+        Serial.println(hip_pos_right);*/
       } 
       else if (inMsg.id == id_hip_right) {
         posVel.parseMessage(inMsg);
@@ -348,5 +351,4 @@ void loop() {
   }
 
   commander.run();
-  //delay(500);
 }  
