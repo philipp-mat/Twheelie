@@ -43,19 +43,18 @@ ODriveTeensyCAN odriveCAN(250000);
 
 // control algorithm parameters
 // stabilisation pid
-// PIDController pid_stb(0.4, 0, 0.04, 100000, 0.39); low
-// PIDController pid_stb(0.3, 0, 0.02, 100000, 0.39); low wtf
-// PIDController pid_stb(0.7, 0.8, 0.05, 100000, 0.39); high
-// PIDController pid_stb(0.6, 0.8, 0.03, 100000, 0.39); high new
-// 0.2, 5, 0.02, 100000, 0.39
+// PIDController pid_stb(0.7, 7, 0.02, 100000, 0.39); high new
 
-PIDController pid_stb(0.8, 6.1, 0.02, 100000, 0.39); // PIDController
+// Target pich muss 0.18 sein für balance
+// 0.7, 2.2, 0.023
+
+PIDController pid_stb(0.6, 1.8, 0.05, 100000, 0.39); // PIDController
 // velocity pid
-PIDController pid_vel(0.01, 0.06, 0, 10000, 0.03);
+PIDController pid_vel(0.0, 0.0, 0, 10000, 0.03);
 // leg height pid
 PIDController pid_hip(1, 0, 0, 10000, HIP_MAX); // position controller
 // velocity control filtering
-LowPassFilter lpf_pitch_cmd(0.0); // 0.07
+LowPassFilter lpf_pitch_cmd(0.07); // 0.07
 // low pass filters for user commands - throttle and steering
 LowPassFilter lpf_throttle(0.5);
 LowPassFilter lpf_steering(0.01);
@@ -263,8 +262,12 @@ Controls compute_controls()
     float roll = getRollIMU();
 
     // wheel controls
-    float target_pitch = lpf_pitch_cmd(pid_vel((wheel_vel_left + wheel_vel_right) / 2 - lpf_throttle(throttle)));
-
+    float target_pitch = lpf_pitch_cmd(pid_vel((wheel_vel_left + wheel_vel_right) / 2 - lpf_throttle(throttle))); // should be 0.18 for balance
+    target_pitch += 0.18;
+    
+    Serial.print("pitch: ");
+    Serial.print(pitch);
+    Serial.print(" target_pitch: ");
     Serial.println(target_pitch);
 
     float wheel_velocity = pid_stb(target_pitch - pitch);
