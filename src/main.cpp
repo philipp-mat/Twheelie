@@ -49,16 +49,16 @@ ODriveTeensyCAN odriveCAN(250000);
 // PIDController pid_stb(0.6, 0.8, 0.03, 100000, 0.39); high new
 // 0.2, 5, 0.02, 100000, 0.39
 
-PIDController pid_stb(0.8, 4.5, 0.02, 100000, 0.39); // PIDController
+PIDController pid_stb(0.8, 6.1, 0.02, 100000, 0.39); // PIDController
 // velocity pid
-PIDController pid_vel(0.015, 0.02, 0, 10000, 0.03);
+PIDController pid_vel(0.01, 0.06, 0, 10000, 0.03);
 // leg height pid
 PIDController pid_hip(1, 0, 0, 10000, HIP_MAX); // position controller
 // velocity control filtering
-LowPassFilter lpf_pitch_cmd(0.07); // 0.07
+LowPassFilter lpf_pitch_cmd(0.0); // 0.07
 // low pass filters for user commands - throttle and steering
 LowPassFilter lpf_throttle(0.5);
-LowPassFilter lpf_steering(0.1);
+LowPassFilter lpf_steering(0.01);
 
 // Bluetooth app variables
 float steering = 0;
