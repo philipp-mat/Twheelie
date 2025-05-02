@@ -10,9 +10,6 @@ float left_hip_offset = 0.16;
 
 int sign = 1;
 
-float alpha = 0.3;
-float prev_wheel_vel = 0;
-
 int DELAY_TIME = 60;
 
 // indecies for odrive controlls
@@ -51,7 +48,7 @@ ODriveTeensyCAN odriveCAN(250000);
 // Target pich muss 0.18 sein für balance
 // 0.7, 2.2, 0.023
 
-PIDController pid_stb(0.6, 3.2, 0.07, 100000, 0.39); // PIDController
+PIDController pid_stb(0.6, 3.2, 0.074, 100000, 0.39); // PIDController
 // velocity pid
 PIDController pid_vel(0.0, 0.0, 0, 10000, 0.03);
 // leg height pid
@@ -274,9 +271,8 @@ Controls compute_controls()
     Serial.println(target_pitch);
 
     float wheel_velocity = pid_stb(target_pitch - pitch);
-    //prev_wheel_vel = alpha * wheel_velocity + (1.0 - alpha) * prev_wheel_vel;
 
-    controls.wheel_controls = prev_wheel_vel;
+    controls.wheel_controls = wheel_velocity;
       
     // compute hip controls
     /*if (!std::isnan(hip_pos_left))
