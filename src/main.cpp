@@ -12,18 +12,19 @@ int sign = 1;
 
 int DELAY_TIME = 60;
 
+const float ROLL_OFFSET = 0.07;
+
 // indecies for odrive controlls
 const int HIP_LEFT = 0;
 const int HIP_RIGHT = 1;
 const int WHEEL_LEFT = 2;
 const int WHEEL_RIGHT = 3;
 
-const float HIP_START_POS_LEFT = 0.5; // in revolutions
-const float HIP_START_POS_RIGHT = -0.5; // in revolutions
+const float HIP_HOME = 0.2;
+const float HIP_MAX = 0.1;
 
-const float HIP_HOME = 0.5;
-float HIP_MAX = 1.4;
-const float HIP_MIN = 0;
+const float MAX_WHEEL_TORQUE = 0.39;
+
 
 float dir [4] = {1, -1, 1, -1}; // [hip_left, hip_right, wheel_left, wheel_right]
 
@@ -48,11 +49,11 @@ ODriveTeensyCAN odriveCAN(250000);
 // Target pich muss 0.18 sein für balance
 // 0.7, 2.2, 0.023
 
-PIDController pid_stb(0.6, 3.2, 0.074, 100000, 0.39); // PIDController
+PIDController pid_stb(0.6, 3.2, 0.076, 100000, MAX_WHEEL_TORQUE); // PIDController
 // velocity pid
 PIDController pid_vel(0.0, 0.0, 0, 10000, 0.03);
 // leg height pid
-PIDController pid_hip(1, 0, 0, 10000, HIP_MAX); // position controller
+PIDController pid_hip(1, 0.05, 0.0, 10000, HIP_MAX); // position controller
 // velocity control filtering
 LowPassFilter lpf_pitch_cmd(0.07); // 0.07
 // low pass filters for user commands - throttle and steering
@@ -169,23 +170,6 @@ void setup() {
   }
   delay(1000);
 
-  //odriveCAN.SetLimits(HIP_LEFT, 5, 18);
-  //odriveCAN.SetLimits(HIP_RIGHT, 5, 18);
-  //odriveCAN.SetLimits(2, 10, 3);
-  //odriveCAN.SetLimits(3, 10, 3);
-  
-  //odriveCAN.SetPositionGain(HIP_LEFT, 70);  //axisID, position gain
-  //odriveCAN.SetVelocityGains(HIP_LEFT, 0.167, 0.333);  //axisID, velocity gain, velocity integrator gain
-
-  //odriveCAN.SetPositionGain(HIP_RIGHT, 70);  //axisID, position gain
-  //odriveCAN.SetVelocityGains(HIP_RIGHT, 0.167, 0.333);  //axisID, velocity gain, velocity integrator gain
-
-  //odriveCAN.SetPositionGain(2, 15);  //axisID, position gain
-  //odriveCAN.SetVelocityGains(2, 0.167, 0.333);  //axisID, velocity gain, velocity integrator gain
-
-  //odriveCAN.SetPositionGain(3, 20);  //axisID, position gain
-  //odriveCAN.SetVelocityGains(3, 0.167, 0.333);  //axisID, velocity gain, velocity integrator gain
-
   // Calibration state
   //odriveCAN.RunState(WHEEL_LEFT, 3);
 
@@ -197,12 +181,8 @@ void setup() {
 
   delay(DELAY_TIME);
 
-  odriveCAN.SetPosition(HIP_LEFT, -dir[HIP_LEFT] * 0.2);
-  odriveCAN.SetPosition(HIP_RIGHT, -dir[HIP_RIGHT] * 0.2);
-
-  //odriveCAN.SetPosition(HIP_LEFT, HIP_START_POS_LEFT);
-
-  //delay(2000);
+  odriveCAN.SetPosition(HIP_LEFT, -dir[HIP_LEFT] * HIP_HOME);
+  odriveCAN.SetPosition(HIP_RIGHT, -dir[HIP_RIGHT] * HIP_HOME);
 
   //homeMotor();
 }
@@ -217,20 +197,22 @@ void idle()
 
 void balance(Controls controls)
 {
-  /*if (call_once == true)
-  {
-    call_once = false;
-    odriveCAN.RunState(WHEEL_LEFT, 8);
-    odriveCAN.RunState(HIP_LEFT, 8);
-  }*/
 
-  Serial.print("Wheel controls left: ");
+  /*Serial.print("Wheel controls left: ");
   Serial.print(dir[WHEEL_LEFT] * controls.wheel_controls);
   Serial.print("  Wheel controls right: ");
-  Serial.println(dir[WHEEL_RIGHT] * controls.wheel_controls);
+  Serial.println(dir[WHEEL_RIGHT] * controls.wheel_controls);*/
 
   odriveCAN.SetTorque(WHEEL_LEFT, -dir[WHEEL_LEFT] * controls.wheel_controls);
   odriveCAN.SetTorque(WHEEL_RIGHT, -dir[WHEEL_RIGHT] * controls.wheel_controls);
+
+  Serial.print("Hip controls left: ");
+  Serial.print(controls.hip_controls - HIP_HOME);
+  Serial.print("Hip controls right: ");
+  Serial.println(controls.hip_controls + HIP_HOME);
+
+  odriveCAN.SetPosition(HIP_LEFT, dir[HIP_LEFT] * controls.hip_controls - HIP_HOME);
+  odriveCAN.SetPosition(HIP_RIGHT, -dir[HIP_RIGHT] * controls.hip_controls + HIP_HOME);
 }
 
 void adjust_height()
@@ -259,28 +241,26 @@ Controls compute_controls()
       
     // read pitch from the IMU
     float pitch = getPitchIMU();
-    float roll = getRollIMU();
+    float roll = getRollIMU() + ROLL_OFFSET;
 
     // wheel controls
     float target_pitch = lpf_pitch_cmd(pid_vel((wheel_vel_left + wheel_vel_right) / 2 - lpf_throttle(throttle))); // should be 0.18 for balance
     target_pitch += 0.18;
     
-    Serial.print("pitch: ");
+    /*Serial.print("pitch: ");
     Serial.print(pitch);
     Serial.print(" target_pitch: ");
-    Serial.println(target_pitch);
+    Serial.println(target_pitch);*/
 
     float wheel_velocity = pid_stb(target_pitch - pitch);
 
     controls.wheel_controls = wheel_velocity;
-      
+    
+    Serial.println(roll);
     // compute hip controls
-    /*if (!std::isnan(hip_pos_left))
-    {
-      float target_roll = 0;
-      float hip_controls = pid_hip(0 - roll);
-      controls.hip_controls = hip_pos_left * hip_controls;
-    }*/
+    float target_roll = 0;
+    float hip_controls = pid_hip(target_roll - roll);
+    controls.hip_controls = hip_controls;
   }
   return controls;
 }
