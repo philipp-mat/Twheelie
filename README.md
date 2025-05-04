@@ -12,3 +12,10 @@ This project contains the code to control my custom-designed two-legged robot on
 Control Twheelie with the command line
 Idle mode --> "I"
 Move mode --> "M"
+
+## PINOUTS
+Teensy
+Pin 23 --> Can RX
+Pin 22 --> Can TX
+Pin 19 --> SCL (IMU)
+Pin 18 --> SDA (IMU)
