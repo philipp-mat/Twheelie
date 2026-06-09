@@ -6,7 +6,7 @@ This project contains the code to control my custom-designed two-legged robot on
 
 
 ## Twheelie alive
-![twheelie_alive](.graphics/Twheelie2.gif)
+![twheelie_alive](.graphics/Twheelie_moving-cut.gif)
 
 ## Control
 Control Twheelie with the command line
